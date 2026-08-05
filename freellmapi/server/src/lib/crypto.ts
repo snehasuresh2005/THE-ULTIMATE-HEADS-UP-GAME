@@ -26,13 +26,14 @@ const PLACEHOLDER_KEY = 'your-64-char-hex-key-here';
 const KEY_FILE_NAME = '.encryption-key';
 
 function parseHexKey(value: string, source: 'env' | 'db' | 'file'): Buffer {
-  if (value.length !== KEY_HEX_LEN || !/^[0-9a-fA-F]+$/.test(value)) {
+  const trimmed = value.trim().replace(/^['"]|['"]$/g, '');
+  if (trimmed.length !== KEY_HEX_LEN || !/^[0-9a-fA-F]+$/.test(trimmed)) {
     throw new Error(
-      `Invalid ENCRYPTION_KEY (${source}): expected ${KEY_HEX_LEN} hex chars (32 bytes), got ${value.length} chars. ` +
+      `Invalid ENCRYPTION_KEY (${source}): expected ${KEY_HEX_LEN} hex chars (32 bytes), got ${trimmed.length} chars. ` +
       `Generate one with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`,
     );
   }
-  return Buffer.from(value, 'hex');
+  return Buffer.from(trimmed, 'hex');
 }
 
 // Outside production we auto-generate and persist a key so a fresh clone

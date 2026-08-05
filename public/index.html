@@ -501,7 +501,7 @@
     }
     
     @media (orientation: portrait) {
-      #portrait-warning {
+      body.game-mode #portrait-warning {
         display: flex;
       }
     }
@@ -886,6 +886,12 @@
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       const t = document.getElementById(id + '-screen');
       if (t) t.classList.add('active');
+      
+      // Control orientation warning visibility: only in game or loading screens
+      if (id !== 'game' && id !== 'loading') {
+        document.body.classList.remove('game-mode');
+      }
+      
       if (id === 'setup') renderSetup();
       if (id === 'custom-deck') renderSavedDecks();
     }
@@ -1138,6 +1144,9 @@ Requirements:
 
     /* ==================== GAME FLOW ==================== */
     async function startTurn() {
+      // Enforce landscape warning mode
+      document.body.classList.add('game-mode');
+      
       const player = state.players[state.currentPlayer];
       const overlay = document.getElementById('turn-overlay');
       document.getElementById('turn-team-name').textContent = player.name;

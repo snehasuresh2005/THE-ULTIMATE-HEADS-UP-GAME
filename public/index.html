@@ -1,0 +1,1501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a1a">
+  <title>HEADS UP — PIXEL ARCADE</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a1a;
+      --bg-panel: #151528;
+      --pixel-green: #39ff14;
+      --pixel-pink: #ff2a6d;
+      --pixel-cyan: #00f0ff;
+      --pixel-yellow: #ffe600;
+      --pixel-purple: #b829dd;
+      --pixel-orange: #ff6b35;
+      --text: #e0e0e0;
+      --text-dim: #8888aa;
+      --border: #333355;
+      --font-pixel: 'Press Start 2P', cursive;
+      --font-body: 'VT323', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; image-rendering: pixelated; }
+
+    html, body {
+      width: 100%; height: 100dvh;
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    /* CRT Scanlines */
+    .crt::before {
+      content: ''; position: fixed; inset: 0; z-index: 9999;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.15),
+        rgba(0,0,0,0.15) 1px,
+        transparent 1px,
+        transparent 2px
+      );
+      pointer-events: none;
+    }
+    .crt::after {
+      content: ''; position: fixed; inset: 0; z-index: 9998;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%);
+      pointer-events: none;
+    }
+
+    /* Screen flicker */
+    @keyframes flicker {
+      0% { opacity: 0.97; }
+      5% { opacity: 0.99; }
+      10% { opacity: 0.94; }
+      15% { opacity: 0.98; }
+      20% { opacity: 1; }
+      100% { opacity: 0.97; }
+    }
+    .crt { animation: flicker 0.15s infinite; }
+
+    /* Pixel Grid Background */
+    .pixel-bg {
+      position: fixed; inset: 0; z-index: 0;
+      background-image: 
+        linear-gradient(rgba(57, 255, 20, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(57, 255, 20, 0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Screens */
+    .screen {
+    position: fixed; inset: 0; z-index: 10;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: flex-start;
+    padding: 20px; 
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;  /* ← ADD THIS LINE */
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+    .screen.active { display: flex; opacity: 1; }
+
+    /* Pixel Typography */
+    h1, h2, h3, .pixel { font-family: var(--font-pixel); }
+    h1 { font-size: clamp(1rem, 5vw, 1.8rem); line-height: 1.4; text-align: center; color: var(--pixel-cyan); text-shadow: 3px 3px 0px #004444; }
+    h2 { font-size: clamp(0.8rem, 4vw, 1.2rem); text-align: center; color: var(--pixel-yellow); text-shadow: 2px 2px 0px #444400; margin-bottom: 12px; }
+    p { font-family: var(--font-body); font-size: 1.3rem; color: var(--text-dim); text-align: center; line-height: 1.3; max-width: 500px; }
+
+    /* Pixel Panel — sharp corners, pixel border */
+    .panel {
+      background: var(--bg-panel);
+      border: 4px solid var(--border);
+      box-shadow: 
+        4px 4px 0px #000,
+        inset -2px -2px 0px rgba(255,255,255,0.05),
+        inset 2px 2px 0px rgba(255,255,255,0.1);
+      padding: 20px;
+      width: 100%; max-width: 600px;
+      margin-top: 12px;
+      position: relative;
+    }
+    .panel::before {
+      content: ''; position: absolute; top: -4px; left: -4px; right: -4px; height: 4px;
+      background: linear-gradient(90deg, var(--pixel-cyan), var(--pixel-purple));
+    }
+
+    /* Pixel Button */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 14px 24px;
+      font-family: var(--font-pixel); font-size: 0.65rem; color: #fff;
+      background: var(--pixel-purple);
+      border: 4px solid #000;
+      box-shadow: 4px 4px 0px #000, inset -2px -2px 0px rgba(0,0,0,0.3), inset 2px 2px 0px rgba(255,255,255,0.3);
+      cursor: pointer;
+      text-transform: uppercase;
+      width: 100%; max-width: 320px; margin-top: 12px;
+      position: relative;
+      transition: transform 0.1s;
+    }
+    .btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #000; }
+    .btn.secondary { background: #444466; }
+    .btn.success { background: var(--pixel-green); color: #000; }
+    .btn.danger { background: var(--pixel-pink); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Stat Boxes */
+    .stat-row { display: flex; gap: 10px; width: 100%; max-width: 600px; margin-top: 12px; }
+    .stat-box {
+      flex: 1; background: var(--bg-panel); border: 3px solid var(--border);
+      box-shadow: 3px 3px 0px #000; padding: 12px; text-align: center;
+    }
+    .stat-box .stat-val {
+      font-family: var(--font-pixel); font-size: 1rem; color: var(--pixel-green);
+      text-shadow: 2px 2px 0px #004400;
+    }
+    .stat-box .stat-lbl {
+      font-family: var(--font-body); font-size: 1rem; color: var(--text-dim); margin-top: 4px;
+    }
+
+    /* Theme Grid */
+    .grid-themes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; max-width: 600px; margin-top: 12px; }
+    @media (min-width: 480px) { .grid-themes { grid-template-columns: repeat(3, 1fr); } }
+    .theme-cell {
+      aspect-ratio: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 6px;
+      background: var(--bg-panel); border: 3px solid var(--border);
+      box-shadow: 3px 3px 0px #000; cursor: pointer;
+      transition: all 0.15s; position: relative;
+    }
+    .theme-cell.selected {
+      border-color: var(--pixel-green);
+      box-shadow: 3px 3px 0px #000, 0 0 15px rgba(57, 255, 20, 0.3);
+      background: rgba(57, 255, 20, 0.08);
+    }
+    .theme-cell .t-icon { font-size: 2rem; }
+    .theme-cell .t-name { font-family: var(--font-pixel); font-size: 0.55rem; text-align: center; }
+
+    /* Inputs */
+    .input-group { width: 100%; max-width: 600px; margin-top: 14px; }
+    .input-group label {
+      display: block; font-family: var(--font-pixel); font-size: 0.55rem;
+      color: var(--pixel-cyan); margin-bottom: 6px; text-transform: uppercase;
+    }
+    select, input, textarea {
+      width: 100%; padding: 10px 14px;
+      font-family: var(--font-body); font-size: 1.2rem;
+      background: #0f0f20; color: var(--text);
+      border: 3px solid var(--border); box-shadow: 3px 3px 0px #000;
+      outline: none;
+    }
+    select:focus, input:focus, textarea:focus { border-color: var(--pixel-cyan); }
+    textarea { min-height: 120px; resize: vertical; }
+
+    /* Game Screen */
+    #game-screen { padding: 0; justify-content: center; }
+
+    .game-hud {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      padding: 12px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(to bottom, rgba(10,10,26,0.95), transparent);
+      pointer-events: none;
+    }
+    .hud-block { text-align: center; }
+    .hud-block .hud-num {
+      font-family: var(--font-pixel); font-size: 1rem;
+      text-shadow: 2px 2px 0px #000;
+    }
+    .hud-block .hud-lbl {
+      font-family: var(--font-pixel); font-size: 0.5rem; color: var(--text-dim); margin-top: 2px;
+    }
+
+    .timer-box {
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 60; background: #000; border: 3px solid var(--pixel-cyan);
+      box-shadow: 3px 3px 0px #000; padding: 8px 16px;
+      font-family: var(--font-pixel); font-size: 1.2rem; color: var(--pixel-cyan);
+      min-width: 60px; text-align: center;
+    }
+    .timer-box.warn { border-color: var(--pixel-yellow); color: var(--pixel-yellow); }
+    .timer-box.danger { border-color: var(--pixel-pink); color: var(--pixel-pink); animation: blink 0.5s infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* Combo */
+    .combo-box {
+      position: fixed; top: 70px; left: 50%; transform: translateX(-50%);
+      z-index: 55; text-align: center; pointer-events: none;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .combo-box.active { opacity: 1; }
+    .combo-box .combo-big {
+      font-family: var(--font-pixel); font-size: 1.5rem; color: var(--pixel-yellow);
+      text-shadow: 3px 3px 0px #443300;
+    }
+    .combo-box .combo-small {
+      font-family: var(--font-pixel); font-size: 0.6rem; color: var(--text);
+    }
+
+    /* Game Card */
+    .card-wrap {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .game-card {
+      width: 90%; max-width: 480px;
+      aspect-ratio: 3/4; max-height: 65vh;
+      background: var(--bg-panel);
+      border: 4px solid var(--pixel-cyan);
+      box-shadow: 6px 6px 0px #000, inset -3px -3px 0px rgba(0,0,0,0.3), inset 3px 3px 0px rgba(255,255,255,0.1);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 24px;
+      position: relative;
+    }
+    .game-card .card-word {
+      font-family: var(--font-pixel);
+      font-size: clamp(1.2rem, 7vw, 2.2rem);
+      line-height: 1.3;
+      word-break: break-word;
+      text-transform: uppercase;
+      color: #fff;
+      text-shadow: 3px 3px 0px #000;
+    }
+    .game-card .card-meta {
+      position: absolute; bottom: 16px;
+      font-family: var(--font-pixel); font-size: 0.5rem;
+      color: var(--text-dim); display: flex; align-items: center; gap: 6px;
+    }
+
+    /* Card anims */
+    .game-card.correct-anim { animation: cardWin 0.4s steps(3) forwards; }
+    @keyframes cardWin {
+      0% { transform: translate(0,0); }
+      33% { transform: translate(-4px, -4px); }
+      66% { transform: translate(4px, -8px); }
+      100% { transform: translate(0, -120%); opacity: 0; }
+    }
+    .game-card.pass-anim { animation: cardFail 0.4s steps(3) forwards; }
+    @keyframes cardFail {
+      0% { transform: translate(0,0); filter: grayscale(0); }
+      50% { transform: translate(0, 4px); filter: grayscale(1); }
+      100% { transform: translate(0, 120%); opacity: 0; }
+    }
+
+    /* Power-ups */
+    .pu-bar {
+      position: fixed; bottom: max(16px, env(safe-area-inset-bottom));
+      left: 0; right: 0; z-index: 55;
+      display: flex; gap: 8px; justify-content: center;
+      flex-wrap: wrap; padding: 0 16px;
+    }
+    .pu-btn {
+      width: 56px; height: 56px;
+      background: var(--bg-panel); border: 3px solid var(--border);
+      box-shadow: 3px 3px 0px #000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 1.2rem; position: relative;
+    }
+    .pu-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0px #000; }
+    .pu-btn.cooldown { opacity: 0.3; cursor: not-allowed; }
+    .pu-btn .pu-cnt {
+      position: absolute; top: -6px; right: -6px;
+      background: var(--pixel-pink); color: #fff;
+      font-family: var(--font-pixel); font-size: 0.5rem;
+      width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+      border: 2px solid #000;
+    }
+    .pu-btn .pu-lbl { font-family: var(--font-pixel); font-size: 0.4rem; margin-top: 2px; color: var(--text-dim); }
+
+    /* Overlays */
+    .overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(10, 10, 26, 0.95);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      transition: opacity 0.3s;
+    }
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .count-pix {
+      font-family: var(--font-pixel); font-size: 5rem; color: var(--pixel-cyan);
+      text-shadow: 4px 4px 0px #004444;
+      animation: pixPop 0.6s steps(2) infinite alternate;
+    }
+    @keyframes pixPop {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.1); }
+    }
+
+    /* CAT MEME OVERLAY */
+    .cat-overlay {
+      position: fixed; inset: 0; z-index: 250;
+      background: rgba(10, 10, 26, 0.9);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .cat-overlay.active { display: flex; animation: catIn 0.3s steps(3); }
+    @keyframes catIn {
+      0% { transform: scale(0.8); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .cat-overlay .cat-img {
+      max-width: 70vw; max-height: 40vh;
+      border: 4px solid #fff;
+      box-shadow: 6px 6px 0px #000;
+      image-rendering: auto;
+    }
+    .cat-overlay .cat-text {
+      font-family: var(--font-pixel); font-size: 1rem;
+      margin-top: 16px; text-align: center;
+      text-shadow: 3px 3px 0px #000;
+    }
+    .cat-overlay.happy .cat-text { color: var(--pixel-green); }
+    .cat-overlay.sad .cat-text { color: var(--pixel-pink); }
+
+    /* Results */
+    .big-score {
+      font-family: var(--font-pixel); font-size: 3rem; color: var(--pixel-green);
+      text-shadow: 4px 4px 0px #004400;
+    }
+    .card-list { width: 100%; max-width: 600px; max-height: 30vh; overflow-y: auto; margin-top: 8px; }
+    .cl-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; background: var(--bg-panel);
+      border: 2px solid var(--border); margin-bottom: 6px;
+      box-shadow: 2px 2px 0px #000;
+    }
+    .cl-dot { width: 8px; height: 8px; border: 2px solid #000; flex-shrink: 0; }
+    .cl-dot.ok { background: var(--pixel-green); }
+    .cl-dot.fail { background: var(--pixel-pink); }
+    .cl-txt { flex: 1; font-family: var(--font-body); font-size: 1.2rem; }
+    .cl-xp { font-family: var(--font-pixel); font-size: 0.6rem; color: var(--pixel-yellow); }
+
+    /* Leaderboard */
+    .lb-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px; background: var(--bg-panel);
+      border: 3px solid var(--border); margin-bottom: 8px;
+      box-shadow: 3px 3px 0px #000;
+    }
+    .lb-row.win { border-color: var(--pixel-yellow); }
+    .lb-rank { font-family: var(--font-pixel); font-size: 0.8rem; width: 30px; text-align: center; }
+    .lb-rank.gold { color: #ffd700; }
+    .lb-name { flex: 1; font-family: var(--font-body); font-size: 1.2rem; }
+    .lb-pts { font-family: var(--font-pixel); font-size: 0.7rem; }
+
+    /* Achievements */
+    .ach-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px; background: var(--bg-panel);
+      border: 3px solid var(--border); margin-bottom: 8px;
+      box-shadow: 3px 3px 0px #000;
+    }
+    .ach-row.locked { opacity: 0.4; filter: grayscale(1); }
+    .ach-row.unlocked { border-color: var(--pixel-yellow); }
+    .ach-icon { font-size: 1.8rem; }
+    .ach-title { font-family: var(--font-pixel); font-size: 0.6rem; }
+    .ach-desc { font-family: var(--font-body); font-size: 1rem; color: var(--text-dim); }
+
+    /* XP Bar */
+    .xp-box { width: 100%; max-width: 360px; margin-top: 10px; }
+    .xp-track {
+      height: 12px; background: #000; border: 2px solid var(--border);
+      box-shadow: inset 2px 2px 0px rgba(0,0,0,0.5);
+    }
+    .xp-fill {
+      height: 100%; background: var(--pixel-yellow);
+      box-shadow: inset -2px -2px 0px rgba(0,0,0,0.3);
+      transition: width 0.5s steps(10);
+      position: relative;
+    }
+    .xp-fill::after {
+      content: ''; position: absolute; right: 0; top: -2px; bottom: -2px; width: 4px;
+      background: #fff; border: 1px solid #000;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed; top: max(16px, env(safe-area-inset-top)); left: 50%;
+      transform: translateX(-50%) translateY(-100px);
+      z-index: 300; background: #000; border: 3px solid var(--pixel-cyan);
+      box-shadow: 4px 4px 0px #000;
+      padding: 12px 20px;
+      font-family: var(--font-pixel); font-size: 0.55rem;
+      display: flex; align-items: center; gap: 10px;
+      transition: transform 0.3s steps(3);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Utility */
+    .flex-row { display: flex; gap: 10px; width: 100%; max-width: 600px; justify-content: center; flex-wrap: wrap; }
+    .mt-1 { margin-top: 8px; }
+    .mt-2 { margin-top: 16px; }
+    .hidden { display: none !important; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #000; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border: 2px solid #000; }
+
+    /* Loading */
+    .pixel-loader {
+      width: 40px; height: 40px;
+      background: var(--pixel-cyan);
+      animation: pixLoad 0.5s steps(2) infinite alternate;
+      box-shadow: 4px 4px 0px #000;
+    }
+    @keyframes pixLoad {
+      0% { transform: scale(1) rotate(0deg); }
+      100% { transform: scale(1.2) rotate(90deg); }
+    }
+
+    /* Landscape */
+    @media (orientation: landscape) and (max-height: 500px) {
+      body::before {
+        content: "ROTATE TO PORTRAIT";
+        position: fixed; inset: 0; z-index: 9999;
+        background: var(--bg); display: flex;
+        align-items: center; justify-content: center;
+        font-family: var(--font-pixel); font-size: 1rem;
+        padding: 40px; text-align: center; color: var(--pixel-pink);
+      }
+    }
+
+    @keyframes fadeInPix {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .pix-in { animation: fadeInPix 0.3s steps(3) forwards; }
+    .d1 { animation-delay: 0.1s; opacity: 0; }
+    .d2 { animation-delay: 0.2s; opacity: 0; }
+    .d3 { animation-delay: 0.3s; opacity: 0; }
+
+    /* Floating Cats */
+    .floating-cat {
+      position: fixed;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      font-size: clamp(1.5rem, 5vw, 2.5rem);
+      z-index: 1;
+      opacity: 0;
+      animation: floatCat linear forwards;
+    }
+    @keyframes floatCat {
+      0% {
+        transform: translate(var(--startX), var(--startY)) rotate(0deg);
+        opacity: 0;
+      }
+      10% {
+        opacity: 0.6;
+      }
+      90% {
+        opacity: 0.6;
+      }
+      100% {
+        transform: translate(var(--endX), var(--endY)) rotate(var(--rot));
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body class="crt">
+  <div class="pixel-bg"></div>
+
+  <!-- Cat Meme Overlay -->
+  <div id="cat-overlay" class="cat-overlay">
+    <img id="cat-img" class="cat-img" src="" alt="cat">
+    <div class="cat-text" id="cat-text">MEOW!</div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden">
+    <span id="toast-icon">🏆</span>
+    <span id="toast-msg">Achievement!</span>
+  </div>
+
+  <!-- WELCOME -->
+  <div id="welcome-screen" class="screen active">
+    <div class="mt-2"></div>
+    <div style="font-size: 3.5rem;" class="pix-in">🐱</div>
+    <h1 class="mt-2 d1 pix-in">THE ULTIMATE<br>HEADS UP</h1>
+    <p class="mt-2 d2 pix-in">PIXEL ARCADE EDITION</p>
+
+    <div class="flex-row mt-2 d3 pix-in" style="z-index: 10;">
+      <button class="btn" onclick="showScreen('setup')">▶ START</button>
+      <button class="btn secondary" onclick="showScreen('custom-deck')">🎴 DECKS</button>
+    </div>
+
+  </div>
+
+  <!-- SETUP -->
+  <div id="setup-screen" class="screen">
+    <h2 class="mt-2">SELECT MISSION</h2>
+
+    <div class="input-group">
+      <label>Timer</label>
+      <select id="timer-select">
+        <option value="30">30s BLITZ</option>
+        <option value="60" selected>60s STANDARD</option>
+        <option value="90">90s EXTENDED</option>
+        <option value="120">120s MARATHON</option>
+      </select>
+    </div>
+
+    <div class="input-group">
+      <label>Players</label>
+      <div id="teams-container" class="flex-row" style="flex-direction: column; gap: 8px;"></div>
+      <div class="flex-row mt-1">
+        <button class="btn secondary" style="margin-top: 0; max-width: 140px;" onclick="addTeam()">+ PLAYER</button>
+        <button class="btn secondary" style="margin-top: 0; max-width: 140px;" onclick="removeTeam()">- PLAYER</button>
+      </div>
+    </div>
+
+    <div class="flex-row mt-2">
+      <button class="btn secondary" onclick="showScreen('welcome')">← BACK</button>
+      <button class="btn" onclick="startPartyGame()" id="start-btn">⚡ START GAME</button>
+    </div>
+  </div>
+
+  <!-- THEME PICKER -->
+  <div id="theme-picker-screen" class="screen">
+    <h2 id="picker-title" class="mt-2">PLAYER 1'S TURN</h2>
+    <div class="input-group">
+      <label>Content Region</label>
+      <input type="text" id="region-input" placeholder="e.g., India, Texas, London, Europe" value="Global">
+    </div>
+    <div class="input-group">
+      <label>Language</label>
+      <input type="text" id="language-input" placeholder="e.g., English, Telugu, Spanish, Hindi" value="English">
+    </div>
+
+
+
+    <div class="input-group">
+      <label>Add Custom Theme</label>
+      <div class="flex-row" style="gap: 8px; justify-content: flex-start; margin-top: 0;">
+        <input type="text" id="custom-theme-input" placeholder="e.g., Telugu actors" style="flex: 1; margin-top: 0;">
+        <button id="add-theme-btn" class="btn secondary" style="margin-top: 0; width: auto; padding: 10px 16px;" onclick="addCustomTheme()">ADD</button>
+      </div>
+    </div>
+    <div class="input-group"><label>Themes (tap to toggle)</label><div class="grid-themes" id="theme-grid"></div></div>
+    <button class="btn mt-2" onclick="startLoading()">⚡ GENERATE CARDS</button>
+  </div>
+
+
+  <!-- LOADING -->
+  <div id="loading-screen" class="screen">
+    <div class="pixel-loader"></div>
+    <div style="font-family: var(--font-pixel); font-size: 0.7rem; color: var(--pixel-cyan); margin-top: 16px;" class="loading-dots">
+      LOADING
+    </div>
+    <p style="margin-top: 8px; font-size: 1.1rem;" id="loading-detail">Fetching Wikipedia...</p>
+    <div style="width: 200px; height: 12px; background: #000; border: 2px solid var(--border); margin-top: 12px; box-shadow: 2px 2px 0px #000;">
+      <div id="loading-bar" style="width: 0%; height: 100%; background: var(--pixel-cyan); transition: width 0.3s;"></div>
+    </div>
+    <button class="btn secondary mt-2" style="max-width: 160px;" onclick="cancelLoading()">ABORT</button>
+  </div>
+
+  <!-- GAME -->
+  <div id="game-screen" class="screen">
+    <div class="game-hud">
+      <div class="hud-block">
+        <div class="hud-num" id="hud-score" style="color: var(--pixel-green);">0</div>
+        <div class="hud-lbl">SCORE</div>
+      </div>
+      <div style="width: 50px;"></div>
+      <div class="hud-block">
+        <div class="hud-num" id="hud-combo" style="color: var(--pixel-yellow);">x1</div>
+        <div class="hud-lbl">COMBO</div>
+      </div>
+    </div>
+
+    <div class="timer-box" id="timer-box">60</div>
+
+    <div class="combo-box" id="combo-box">
+      <div class="combo-big" id="combo-big">x3</div>
+      <div class="combo-small" id="combo-small">COMBO!</div>
+    </div>
+
+    <div class="pu-bar" id="pu-bar">
+      <div class="pu-btn" id="pu-time" onclick="usePowerup('time')">
+        <span>⏱️</span><span class="pu-cnt" id="pu-time-cnt">1</span><span class="pu-lbl">TIME</span>
+      </div>
+      <div class="pu-btn" id="pu-skip" onclick="usePowerup('skip')">
+        <span>⏭️</span><span class="pu-cnt" id="pu-skip-cnt">2</span><span class="pu-lbl">SKIP</span>
+      </div>
+      <div class="pu-btn" id="pu-double" onclick="usePowerup('double')">
+        <span>2️⃣</span><span class="pu-cnt" id="pu-double-cnt">1</span><span class="pu-lbl">2X</span>
+      </div>
+      <div class="pu-btn" id="pu-shield" onclick="usePowerup('shield')">
+        <span>🛡️</span><span class="pu-cnt" id="pu-shield-cnt">1</span><span class="pu-lbl">SHIELD</span>
+      </div>
+    </div>
+
+    <div class="card-wrap">
+      <div class="game-card" id="game-card">
+        <div class="card-word" id="card-word">READY?</div>
+        <div class="card-meta">
+          <span id="card-icon">🎬</span>
+          <span id="card-theme-name">Movies</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="turn-overlay" class="overlay hidden">
+      <div style="text-align: center;">
+        <div style="font-family: var(--font-pixel); font-size: 1.2rem; color: var(--pixel-cyan); margin-bottom: 8px;" id="turn-team-name">SQUAD A</div>
+        <div style="font-family: var(--font-body); font-size: 1.2rem; color: var(--text-dim);" id="turn-round-info">Round 1</div>
+        <div class="count-pix" id="turn-count" style="margin-top: 16px;">3</div>
+      </div>
+    </div>
+
+    <div id="countdown-overlay" class="overlay hidden">
+      <div class="count-pix" id="countdown-num">3</div>
+    </div>
+
+    <div id="pause-overlay" class="overlay hidden">
+      <h2 style="margin-bottom: 8px;">⏸️ PAUSED</h2>
+      <p>Game frozen.</p>
+      <button class="btn mt-2" onclick="resumeGame()">RESUME</button>
+      <button class="btn secondary" style="max-width: 160px;" onclick="quitGame()">QUIT</button>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results-screen" class="screen">
+    <div style="text-align: center;" class="pix-in">
+      <div class="big-score" id="final-score">0</div>
+      <div style="font-family: var(--font-body); font-size: 1.2rem; color: var(--text-dim);" id="score-breakdown">0 correct • 0 passed</div>
+    </div>
+
+    <div id="leaderboard-panel" class="panel hidden" style="margin-top: 12px;">
+      <h3 style="text-align: center; font-family: var(--font-pixel); font-size: 0.7rem; margin-bottom: 10px;">🏆 LEADERBOARD</h3>
+      <div id="leaderboard-list"></div>
+    </div>
+
+    <div class="panel mt-2">
+      <h3 style="text-align: center; font-family: var(--font-pixel); font-size: 0.6rem; color: var(--pixel-green); margin-bottom: 10px;">✅ CORRECT</h3>
+      <div class="card-list" id="correct-list"></div>
+    </div>
+
+    <div class="panel mt-2">
+      <h3 style="text-align: center; font-family: var(--font-pixel); font-size: 0.6rem; color: var(--pixel-pink); margin-bottom: 10px;">❌ PASSED</h3>
+      <div class="card-list" id="pass-list"></div>
+    </div>
+
+    <div class="flex-row mt-2">
+      <button class="btn secondary" onclick="showScreen('setup')">NEW GAME</button>
+      <button class="btn" id="continue-btn" onclick="nextTurnOrFinish()">CONTINUE →</button>
+    </div>
+    <button class="btn secondary" style="max-width: 180px;" onclick="shareResults()">🔗 SHARE</button>
+  </div>
+
+  <!-- Achievements screen fully removed -->
+
+  <!-- CUSTOM DECKS -->
+  <div id="custom-deck-screen" class="screen">
+    <h2 class="mt-2">🎴 CUSTOM DECKS</h2>
+    <div class="panel mt-2">
+      <div class="input-group" style="margin-top: 0;">
+        <label>Deck Name</label>
+        <input type="text" id="custom-name" placeholder="e.g., Bollywood">
+      </div>
+      <div class="input-group">
+        <label>Cards (one per line)</label>
+        <textarea id="custom-items" placeholder="Sholay&#10;Lagaan&#10;..."></textarea>
+      </div>
+      <button class="btn" onclick="saveCustomDeck()">💾 SAVE</button>
+    </div>
+
+    <h3 class="mt-2" style="text-align: center; font-family: var(--font-pixel); font-size: 0.7rem;">YOUR DECKS</h3>
+    <div id="saved-decks" style="width: 100%; max-width: 600px; margin-top: 10px;"></div>
+
+    <button class="btn secondary mt-2" onclick="showScreen('welcome')">← BACK</button>
+  </div>
+
+  <script>
+        /* ==================== CAT MEME URLs ==================== */
+    const HAPPY_CATS = [
+      'https://kimi-web-img.kimi.ai/img/ih1.redbubble.net/bdfa3cbe0dc529a7b1e626e4fb564e22c4696f0e.jpg',
+      'https://kimi-web-img.kimi.ai/img/img.magnific.com/6bb5d47e45979691bf12ab94ba646717e11e32ea.jpg',
+      'https://kimi-web-img.kimi.ai/img/www.shutterstock.com/bb5c3e7a952417510c48faf977e295dbbfe3d290.jpg'
+    ];
+    const SAD_CATS = [
+      'https://kimi-web-img.kimi.ai/img/ih1.redbubble.net/491872e35451d28d9aa8f0718fc03db19538a15b.jpg',
+      'https://kimi-web-img.kimi.ai/img/ih1.redbubble.net/0ce7bb7c6869385562e418bfcb41134174767398.jpg',
+      'https://kimi-web-img.kimi.ai/img/ih1.redbubble.net/04baebb46fd7155d2df67bffcfabe3af9e0ba169.jpg'
+    ];
+
+    const THEMES = {
+      movies:     { emoji: '🎬', name: 'Movies',     color: '#8b5cf6' },
+      celebrities:{ emoji: '⭐', name: 'Celebs',     color: '#fbbf24' },
+      animals:    { emoji: '🐾', name: 'Animals',    color: '#4ade80' },
+      countries:  { emoji: '🌍', name: 'Countries',  color: '#3b82f6' },
+      sports:     { emoji: '⚽', name: 'Sports',     color: '#f97316' },
+      food:       { emoji: '🍕', name: 'Food',       color: '#ef4444' },
+      tv:         { emoji: '📺', name: 'TV Shows',   color: '#ec4899' },
+      music:      { emoji: '🎵', name: 'Musicians',  color: '#6366f1' },
+      history:    { emoji: '🏛️', name: 'History',    color: '#a16207' },
+      landmarks:  { emoji: '🗼', name: 'Landmarks',  color: '#06b6d4' }
+    };
+
+    const SQUAD_COLORS = ['#00f0ff', '#b829dd', '#39ff14', '#ff2a6d', '#ffe600', '#ff6b35'];
+
+    const FALLBACK_CARDS = [
+      {text:'Titanic', theme:'movies'}, {text:'Godfather', theme:'movies'},
+      {text:'Lion', theme:'animals'}, {text:'Eiffel Tower', theme:'landmarks'},
+      {text:'Brazil', theme:'countries'}, {text:'MJ', theme:'music'},
+      {text:'Pizza', theme:'food'}, {text:'Football', theme:'sports'},
+      {text:'GOT', theme:'tv'}, {text:'Napoleon', theme:'history'}
+    ];
+
+    const OFFLINE_THEME_CARDS = {
+      movies: ['Titanic', 'Avatar', 'The Godfather', 'Inception', 'Jaws', 'Star Wars', 'Jurassic Park', 'The Matrix', 'Gladiator', 'Spider-Man', 'The Dark Knight', 'Interstellar', 'Pulp Fiction', 'Forrest Gump', 'Frozen', 'Toy Story', 'Iron Man', 'The Lion King', 'Avatar', 'Avengers'],
+      celebrities: ['Taylor Swift', 'Lionel Messi', 'Tom Cruise', 'Beyonce', 'Brad Pitt', 'Ariana Grande', 'LeBron James', 'Will Smith', 'Elon Musk', 'Cristiano Ronaldo', 'Bill Gates', 'Oprah Winfrey', 'Selena Gomez', 'Dwayne Johnson', 'Johnny Depp', 'Lady Gaga', 'Rihanna', 'Justin Bieber', 'Zendaya', 'Robert Downey Jr'],
+      animals: ['Lion', 'Tiger', 'Elephant', 'Giraffe', 'Dolphin', 'Penguin', 'Kangaroo', 'Panda', 'Cheetah', 'Koala', 'Zebra', 'Gorilla', 'Octopus', 'Eagle', 'Wolf', 'Bear', 'Shark', 'Camel', 'Monkey', 'Owl'],
+      countries: ['United States', 'India', 'Brazil', 'Japan', 'France', 'Australia', 'Canada', 'Egypt', 'Germany', 'South Africa', 'United Kingdom', 'Italy', 'Mexico', 'Russia', 'China', 'Spain', 'Argentina', 'New Zealand', 'Switzerland', 'Turkey'],
+      sports: ['Football', 'Basketball', 'Cricket', 'Tennis', 'Baseball', 'Soccer', 'Rugby', 'Golf', 'Swimming', 'Athletics', 'Volleyball', 'Badminton', 'Boxing', 'Formula 1', 'Gymnastics', 'Ice Hockey', 'Table Tennis', 'Cycling', 'Skiing', 'Wrestling'],
+      food: ['Pizza', 'Burger', 'Sushi', 'Tacos', 'Pasta', 'Ice Cream', 'Salad', 'Steak', 'Pancakes', 'Croissant', 'Ramen', 'Biryani', 'Chocolate', 'Donut', 'Hot Dog', 'Lasagna', 'Waffles', 'French Fries', 'Dim Sum', 'Cheesecake'],
+      tv: ['Game of Thrones', 'Breaking Bad', 'Friends', 'Stranger Things', 'The Office', 'The Simpsons', 'Sherlock', 'Squid Game', 'Narcos', 'Lost', 'The Crown', 'Dark', 'Black Mirror', 'Modern Family', 'The Mandalorian', 'Rick and Morty', 'Money Heist', 'Brooklyn Nine-Nine', 'Better Call Saul', 'Succession'],
+      music: ['Michael Jackson', 'The Beatles', 'Freddie Mercury', 'Elvis Presley', 'Ed Sheeran', 'Billie Eilish', 'Eminem', 'Drake', 'Shakira', 'Adele', 'Justin Timberlake', 'Bruno Mars', 'Coldplay', 'Queen', 'Pink Floyd', 'Nirvana', 'Post Malone', 'Dua Lipa', 'Harry Styles', 'Travis Scott'],
+      history: ['Albert Einstein', 'Julius Caesar', 'Leonardo da Vinci', 'Cleopatra', 'Mahatma Gandhi', 'Abraham Lincoln', 'Nelson Mandela', 'Winston Churchill', 'Joan of Arc', 'Marie Curie', 'Alexander the Great', 'Napoleon Bonaparte', 'Martin Luther King Jr', 'George Washington', 'Isaac Newton', 'Galileo Galilei', 'Gautama Buddha', 'Christopher Columbus', 'Mozart', 'Beethoven'],
+      landmarks: ['Eiffel Tower', 'Taj Mahal', 'Statue of Liberty', 'Great Wall of China', 'Colosseum', 'Machu Picchu', 'Pyramids of Giza', 'Sydney Opera House', 'Grand Canyon', 'Mount Everest', 'Stonehenge', 'Leaning Tower of Pisa', 'Petra', 'Niagara Falls', 'Golden Gate Bridge', 'Christ the Redeemer', 'Burj Khalifa', 'Times Square', 'Disneyland', 'Louvre Museum']
+    };
+
+    /* ==================== STATE ==================== */
+    let state = {
+      lang: 'en', themes: ['movies','celebrities','animals'],
+      timer: 60, deck: [], currentIdx: 0,
+      roundScore: 0,
+      correct: [], passed: [],
+      gameActive: false, paused: false,
+      players: [{name:'Player 1', score:0, color: '#00f0ff'}],
+      currentPlayer: 0,
+      usingCustom: false, customDeckName: null,
+      abortController: null,
+      combo: 0, maxCombo: 0,
+      timeLeft: 60, timerInterval: null,
+      lastTiltTime: 0
+    };
+
+    let audioCtx = null;
+    let wakeLock = null;
+
+    /* ==================== CAT MEME DISPLAY ==================== */
+    function showCat(type, message, duration = 3000) {
+      const overlay = document.getElementById('cat-overlay');
+      const img = document.getElementById('cat-img');
+      const text = document.getElementById('cat-text');
+      
+      const urls = type === 'happy' ? HAPPY_CATS : SAD_CATS;
+      img.src = urls[Math.floor(Math.random() * urls.length)];
+      text.textContent = message;
+      
+      overlay.className = 'cat-overlay ' + type + ' active';
+      
+      setTimeout(() => {
+        overlay.classList.remove('active');
+      }, duration);
+    }
+
+    /* ==================== AUDIO (Chiptune) ==================== */
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    function playTone(freq, duration, type = 'square', vol = 0.1) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playCorrect() {
+      playTone(523, 0.1, 'square', 0.12);
+      setTimeout(() => playTone(659, 0.1, 'square', 0.1), 80);
+      setTimeout(() => playTone(784, 0.15, 'square', 0.08), 160);
+    }
+
+    function playPass() {
+      playTone(220, 0.3, 'sawtooth', 0.08);
+      setTimeout(() => playTone(196, 0.2, 'sawtooth', 0.06), 150);
+    }
+
+    function playCombo() {
+      playTone(880, 0.1, 'square', 0.1);
+      setTimeout(() => playTone(1100, 0.1, 'square', 0.1), 100);
+      setTimeout(() => playTone(1320, 0.2, 'square', 0.1), 200);
+    }
+
+    function playPowerup() {
+      [440, 554, 659, 880].forEach((f, i) => setTimeout(() => playTone(f, 0.12, 'square', 0.1), i * 80));
+    }
+
+    function playLevelUp() {
+      [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => playTone(f, 0.2, 'square', 0.12), i * 120));
+    }
+
+    function vibrate(pattern) {
+      if (navigator.vibrate) navigator.vibrate(pattern);
+    }
+
+    /* ==================== TOAST ==================== */
+    function showToast(icon, msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-icon').textContent = icon;
+      document.getElementById('toast-msg').textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('show'), 10);
+      setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.classList.add('hidden'), 300); }, 2500);
+    }
+
+    /* ==================== NAVIGATION ==================== */
+    function showScreen(id) {
+      initAudio();
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      const t = document.getElementById(id + '-screen');
+      if (t) t.classList.add('active');
+      if (id === 'setup') renderSetup();
+      if (id === 'custom-deck') renderSavedDecks();
+    }
+    
+    function loadSettings() {
+      const region = localStorage.getItem('uhu_region');
+      const lang = localStorage.getItem('uhu_language');
+      const apiKey = localStorage.getItem('uhu_gemini_api_key');
+      if (region) document.getElementById('region-input').value = region;
+      if (lang) document.getElementById('language-input').value = lang;
+      if (apiKey) document.getElementById('api-key-input').value = apiKey;
+    }
+
+    function showThemePicker() {
+      const player = state.players[state.currentPlayer];
+      document.getElementById('picker-title').textContent = `${player.name}'s Turn`;
+      document.getElementById('picker-title').style.color = player.color;
+      
+      state.themes = [];
+      const grid = document.getElementById('theme-grid');
+      grid.innerHTML = '';
+      Object.entries(THEMES).forEach(([key, info]) => {
+        renderThemeCell(key, info);
+      });
+
+      loadSettings();
+      
+      showScreen('theme-picker');
+    }
+
+    /* ==================== SETUP ==================== */
+    function renderSetup() {
+      const tc = document.getElementById('teams-container');
+      if (!tc.children.length) { addTeam('Player 1'); addTeam('Player 2'); }
+    }
+
+    function addTeam(name) {
+      const c = document.getElementById('teams-container');
+      if (c.children.length >= 6) return;
+      const idx = c.children.length; name = name || `Player ${idx + 1}`;
+      const color = SQUAD_COLORS[idx % SQUAD_COLORS.length];
+      const div = document.createElement('div');
+      div.style.cssText = 'display: flex; gap: 8px; align-items: center; width: 100%;';
+      div.innerHTML = `<div style="width: 14px; height: 14px; background: ${color}; border: 2px solid #000; box-shadow: 2px 2px 0px #000; flex-shrink: 0;"></div>
+        <input type="text" class="team-name" value="${name}" style="flex: 1; margin-top: 0;" data-color="${color}">`;
+      c.appendChild(div);
+    }
+
+    function removeTeam() {
+      const c = document.getElementById('teams-container');
+      if (c.children.length > 1) c.removeChild(c.lastElementChild);
+    }
+
+    function renderThemeCell(key, info) {
+        const grid = document.getElementById('theme-grid');
+        const div = document.createElement('div');
+        div.className = 'theme-cell' + (state.themes.includes(key) ? ' selected' : '');
+        div.innerHTML = `<div class="t-icon">${info.emoji}</div><div class="t-name">${info.name}</div>`;
+        div.onclick = () => {
+          div.classList.toggle('selected');
+          const isSelected = state.themes.includes(key);
+          state.themes = isSelected ? state.themes.filter(t => t !== key) : [...state.themes, key];
+        };
+        grid.appendChild(div);
+    }
+
+    function addCustomTheme() {
+      const input = document.getElementById('custom-theme-input');
+      const themeName = input.value.trim();
+      if (!themeName) return;
+
+      const themeKey = `custom_${Date.now()}`;
+      THEMES[themeKey] = {
+        emoji: '✨', name: themeName, color: '#b829dd', isCustom: true
+      };
+      renderThemeCell(themeKey, THEMES[themeKey]);
+      state.themes.push(themeKey);
+
+      const grid = document.getElementById('theme-grid');
+      const lastCell = grid.lastElementChild;
+      if (lastCell) lastCell.classList.add('selected');
+
+      showToast('✅', `Added custom theme: "${themeName}"`);
+      input.value = '';
+    }
+
+    /* ==================== API ==================== */
+    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+    function clean(t) { return t.replace(/\s*\([^)]*\)/g, '').replace(/_/g, ' ').trim(); }
+
+    async function fetchBackendLLMCards(theme, region, language, signal) {
+      const endpoint = '/v1/chat/completions';
+      const prompt = `You are a helper for a "Heads Up" party game.
+Generate a list of 30 words, names, or short phrases for a Heads Up game deck.
+Theme/Category: ${theme}
+Geographic Region/Context: ${region}
+Language: ${language}
+
+Requirements:
+- The items must be relevant to the theme and region specified (e.g. if the theme is "Bollywood actors" and the region is "India", generate names of actual popular Indian Bollywood actors).
+- The items must be translated/written in the requested language.
+- Keep the items short and concise (1-4 words).
+- Return ONLY a JSON array of strings. Do not include markdown code block formatting. Example output format: ["Item 1", "Item 2", "Item 3"]`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'auto',
+          messages: [{ role: 'user', content: prompt }]
+        }),
+        signal
+      });
+
+      if (!response.ok) throw new Error(`Backend AI API error: ${response.statusText}`);
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content;
+      if (!text) throw new Error("No response content from backend AI");
+
+      const cleanedText = text.trim().replace(/^```json/, '').replace(/^```/, '').replace(/```$/, '').trim();
+      const parsed = JSON.parse(cleanedText);
+      if (Array.isArray(parsed)) return parsed;
+      if (typeof parsed === 'object') {
+        for (const val of Object.values(parsed)) {
+          if (Array.isArray(val)) return val;
+        }
+      }
+      throw new Error("AI response did not contain a valid list array");
+    }
+
+    function getOfflineFallbackCards(themeKey) {
+      if (OFFLINE_THEME_CARDS[themeKey]) return OFFLINE_THEME_CARDS[themeKey];
+      return FALLBACK_CARDS.map(c => c.text);
+    }
+
+    /* ==================== LOADING ==================== */
+    async function startLoading() {
+      initAudio();
+      const region = document.getElementById('region-input').value.trim() || 'Global';
+      const lang = document.getElementById('language-input').value.trim() || 'English';
+      
+      localStorage.setItem('uhu_region', region);
+      localStorage.setItem('uhu_language', lang);
+      
+      state.lang = lang;
+      state.currentPlayer = state.currentPlayer || 0;
+      state.usingCustom = false; state.customDeckName = null;
+
+      if (state.themes.length === 0) { showToast('⚠️', 'Pick a theme!'); return; }
+
+      showScreen('loading');
+      const bar = document.getElementById('loading-bar');
+      const detail = document.getElementById('loading-detail');
+      state.abortController = new AbortController();
+      const signal = state.abortController.signal;
+
+      const all = [];
+
+      for (let i = 0; i < state.themes.length; i++) {
+        if (signal.aborted) return;
+        const t = state.themes[i];
+        const themeName = THEMES[t]?.name || t;
+        detail.textContent = `Fetching ${themeName}...`;
+        bar.style.width = `${(i / state.themes.length) * 100}%`;
+        
+        let words = [];
+        try {
+          words = await fetchBackendLLMCards(themeName, region, lang, signal);
+        } catch (e) {
+          console.warn('Backend proxy call failed, falling back to preset list:', e);
+          words = getOfflineFallbackCards(t);
+        }
+
+        words.forEach(text => all.push({ text, theme: t, id: Math.random().toString(36).slice(2) }));
+      }
+
+      if (all.length < 10) FALLBACK_CARDS.forEach(c => all.push({ ...c, id: Math.random().toString(36).slice(2) }));
+      state.deck = shuffle(all);
+      bar.style.width = '100%';
+      setTimeout(() => startTurn(), 600);
+    }
+
+    function cancelLoading() {
+      if (state.abortController) state.abortController.abort();
+      showScreen('setup');
+    }
+
+    function startPartyGame() {
+      const timer = parseInt(document.getElementById('timer-select').value);
+      const teamEls = document.querySelectorAll('.team-name');
+      state.timer = timer;
+      state.players = Array.from(teamEls).map((el, i) => ({
+        name: el.value.trim() || `Player ${i+1}`, score: 0, color: el.dataset.color || '#00f0ff'
+      }));
+      state.currentPlayer = 0;
+      
+      showThemePicker();
+    }
+
+    /* ==================== CUSTOM DECKS ==================== */
+    function saveCustomDeck() {
+      const name = document.getElementById('custom-name').value.trim();
+      const items = document.getElementById('custom-items').value.split('\n').map(s => s.trim()).filter(Boolean);
+      if (!name || items.length === 0) { showToast('⚠️', 'Name + cards needed!'); return; }
+      const decks = JSON.parse(localStorage.getItem('uhu_pixel_decks') || '{}');
+      decks[name] = items;
+      localStorage.setItem('uhu_pixel_decks', JSON.stringify(decks));
+      document.getElementById('custom-name').value = '';
+      document.getElementById('custom-items').value = '';
+      renderSavedDecks();
+      showToast('💾', 'Deck saved!');
+    }
+
+    function deleteCustomDeck(name) {
+      const decks = JSON.parse(localStorage.getItem('uhu_pixel_decks') || '{}');
+      delete decks[name];
+      localStorage.setItem('uhu_pixel_decks', JSON.stringify(decks));
+      renderSavedDecks();
+    }
+
+    function useCustomDeck(name) {
+      const decks = JSON.parse(localStorage.getItem('uhu_pixel_decks') || '{}');
+      const items = decks[name] || [];
+      if (items.length === 0) return;
+      state.deck = shuffle(items.map(text => ({ text, theme: 'custom', id: Math.random().toString(36).slice(2) })));
+      state.usingCustom = true; state.customDeckName = name;
+      state.players = [{ name: 'Player 1', score: 0, color: '#00f0ff' }];
+      state.currentPlayer = 0; state.timer = 60;
+      startTurn();
+    }
+
+    function renderSavedDecks() {
+      const c = document.getElementById('saved-decks');
+      const decks = JSON.parse(localStorage.getItem('uhu_pixel_decks') || '{}');
+      c.innerHTML = Object.entries(decks).map(([name, items]) => `
+        <div class="cl-item" style="cursor: pointer;">
+          <div class="cl-dot ok" style="background: var(--pixel-purple);"></div>
+          <div class="cl-txt">${name}</div>
+          <div style="font-size: 1rem; color: var(--text-dim);">${items.length}</div>
+          <button class="btn" style="margin-left: : 0; padding: 6px 12px; width: auto; font-size: 0.55rem;" onclick="event.stopPropagation(); useCustomDeck('${name.replace(/'/g, "\\'")}')">PLAY</button>
+          <button class="btn secondary" style="margin: 0; padding: 6px 12px; width: auto; font-size: 0.55rem;" onclick="event.stopPropagation(); deleteCustomDeck('${name.replace(/'/g, "\\'")}')">DEL</button>
+        </div>
+      `).join('');
+      if (Object.keys(decks).length === 0) {
+        c.innerHTML = '<p style="color: var(--text-dim); text-align: center; padding: 20px; font-family: var(--font-body); font-size: 1.2rem;">No decks yet. Create one!</p>';
+      }
+    }
+
+    /* ==================== GAME FLOW ==================== */
+    async function startTurn() {
+      const player = state.players[state.currentPlayer];
+      const overlay = document.getElementById('turn-overlay');
+      document.getElementById('turn-team-name').textContent = player.name;
+      document.getElementById('turn-team-name').style.color = player.color;
+      document.getElementById('turn-round-info').textContent = `Get Ready!`;
+      
+      overlay.classList.remove('hidden');
+      const cd = document.getElementById('turn-count');
+
+      if (screen.orientation?.lock) screen.orientation.lock('portrait').catch(()=>{});
+      if ('wakeLock' in navigator) {
+        try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+      }
+
+      for (let i = 3; i > 0; i--) {
+        cd.textContent = i;
+        cd.style.animation = 'none';
+        cd.offsetHeight;
+        cd.style.animation = 'pixPop 0.6s steps(2) infinite alternate';
+        playTone(440 + (3-i)*150, 0.15, 'square', 0.1);
+        await new Promise(r => setTimeout(r, 700));
+      }
+      overlay.classList.add('hidden');
+      startRound();
+    }
+
+    function startRound() {
+      state.roundScore = 0;
+      state.currentIdx = 0;
+      state.correct = [];
+      state.passed = [];
+      state.gameActive = true;
+      state.paused = false;
+      state.combo = 0;
+      state.maxCombo = 0;
+      state.timeLeft = state.timer;
+      
+      updatePowerupUI();
+      showScreen('game');
+      updateHUD();
+      showCard();
+
+      const cdOverlay = document.getElementById('countdown-overlay');
+      const cdNum = document.getElementById('countdown-num');
+      cdOverlay.classList.remove('hidden');
+      let c = 3;
+      cdNum.textContent = c;
+      playTone(880, 0.2, 'square', 0.12);
+      
+      const cInt = setInterval(() => {
+        c--;
+        if (c > 0) {
+          cdNum.textContent = c;
+          playTone(880, 0.2, 'square', 0.12);
+        } else {
+          clearInterval(cInt);
+          cdOverlay.classList.add('hidden');
+          beginTimer();
+        }
+      }, 700);
+    }
+
+    function beginTimer() {
+      const box = document.getElementById('timer-box');
+      box.textContent = state.timeLeft;
+      box.className = 'timer-box';
+
+      state.timerInterval = setInterval(() => {
+        if (!state.gameActive || state.paused) return;
+        state.timeLeft--;
+        box.textContent = state.timeLeft;
+        const pct = state.timeLeft / state.timer;
+        if (pct < 0.2) box.className = 'timer-box danger';
+        else if (pct < 0.5) box.className = 'timer-box warn';
+
+        if (state.timeLeft <= 0) {
+          clearInterval(state.timerInterval);
+          endRound();
+        }
+      }, 1000);
+    }
+
+    function showCard() {
+      if (state.currentIdx >= state.deck.length) {
+        endRound();
+        return;
+      }
+      const card = state.deck[state.currentIdx];
+      const el = document.getElementById('game-card');
+      const word = document.getElementById('card-word');
+      const icon = document.getElementById('card-icon');
+      const themeName = document.getElementById('card-theme-name');
+      const info = THEMES[card.theme] || { emoji: '🃏', name: 'Custom', color: '#6366f1' };
+
+      el.classList.remove('correct-anim', 'pass-anim');
+      el.style.animation = 'none';
+      el.offsetHeight;
+      el.style.borderColor = info.color;
+      el.style.boxShadow = `6px 6px 0px #000, 0 0 20px ${info.color}30, inset -3px -3px 0px rgba(0,0,0,0.3), inset 3px 3px 0px rgba(255,255,255,0.1)`;
+      
+      word.textContent = card.text;
+      icon.textContent = info.emoji;
+      themeName.textContent = info.name;
+    }
+
+    /* ==================== SCORING & COMBOS ==================== */
+    function handleCorrect() {
+      if (!state.gameActive || state.paused) return;
+      
+      const card = state.deck[state.currentIdx];
+      state.combo++;
+      if (state.combo > state.maxCombo) state.maxCombo = state.combo;
+
+      const points = 1;
+      
+      state.roundScore += points;
+      state.correct.push({ ...card, points });
+
+      playCorrect();
+      vibrate(50);
+
+      // Happy cat on big combos!
+      if (state.combo === 3) showCat('happy', 'PURRFECT!', 1200);
+      if (state.combo === 5) showCat('happy', 'MEOW-VELOUS!', 1500);
+
+      if (state.combo >= 3) {
+        const cb = document.getElementById('combo-box');
+        document.getElementById('combo-big').textContent = `x${state.combo}`;
+        document.getElementById('combo-small').textContent = state.combo >= 5 ? 'UNSTOPPABLE!' : 'COMBO!';
+        cb.classList.add('active');
+        playCombo();
+        setTimeout(() => cb.classList.remove('active'), 1200);
+      }
+
+      updateHUD();
+      animateCard('correct-anim');
+    }
+
+    function handlePass() {
+      if (!state.gameActive || state.paused) return;
+
+      const card = state.deck[state.currentIdx];
+      state.passed.push(card);
+      state.combo = 0;
+      
+      // Sad cat appears when you fail!
+      showCat('sad', 'NOPE...', 1000);
+      playPass();
+      vibrate([60, 30, 60]);
+      updateHUD();
+      animateCard('pass-anim');
+    }
+
+    function animateCard(cls) {
+      const el = document.getElementById('game-card');
+      el.classList.add(cls);
+      state.currentIdx++;
+      setTimeout(() => showCard(), 400);
+    }
+
+    function updateHUD() {
+      document.getElementById('hud-score').textContent = state.roundScore;
+      document.getElementById('hud-combo').textContent = `x${state.combo}`;
+      document.getElementById('hud-combo').style.color = state.combo >= 3 ? '#ffe600' : '#8888aa';
+    }
+
+    /* ==================== POWER-UPS ==================== */
+    function updatePowerupUI() {
+      document.getElementById('pu-bar').classList.add('hidden');
+    }
+
+    function usePowerup(type) { /* Powerups disabled */ }
+
+    /* ==================== END ROUND ==================== */
+    function endRound() {
+      state.gameActive = false;
+      state.players[state.currentPlayer].score = state.roundScore;
+      clearInterval(state.timerInterval);
+      if (wakeLock?.release) wakeLock.release().catch(()=>{});
+
+      const totalPlayed = state.correct.length + state.passed.length;
+      if (state.correct.length > totalPlayed / 2) {
+        showCat('happy', 'GREAT JOB!', 3000);
+      } else {
+        showCat('sad', 'BETTER LUCK NEXT TIME!', 3000);
+      }
+
+      showResults();
+    }
+
+    function showResults() {
+      showScreen('results');
+      const player = state.players[state.currentPlayer];
+      document.getElementById('final-score').textContent = state.roundScore;
+      document.getElementById('score-breakdown').textContent = 
+        `${state.correct.length} correct • ${state.passed.length} passed`;
+
+      const lbPanel = document.getElementById('leaderboard-panel');
+      if (state.players.length > 1) {
+        lbPanel.classList.remove('hidden');
+        const sorted = [...state.players].sort((a,b) => b.score - a.score);
+        document.getElementById('leaderboard-list').innerHTML = sorted.map((t, i) => `
+          <div class="lb-row ${i===0?'win':''}">
+            <div class="lb-rank ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">${i+1}</div>
+            <div class="lb-name">${t.name}</div>
+            <div class="lb-pts" style="color: ${t.color}">${t.score}</div>
+          </div>
+        `).join('');
+      } else {
+        lbPanel.classList.add('hidden');
+      }
+
+      document.getElementById('correct-list').innerHTML = state.correct.map(c => `
+        <div class="cl-item">
+          <div class="cl-dot ok"></div>
+          <div class="cl-txt">${c.text}</div>
+          <div class="cl-xp">+1</div>
+        </div>
+      `).join('') || '<p style="color: var(--text-dim); text-align: center;">None</p>';
+      
+      document.getElementById('pass-list').innerHTML = state.passed.map(c => `
+        <div class="cl-item">
+          <div class="cl-dot fail"></div>
+          <div class="cl-txt">${c.text}</div>
+        </div>
+      `).join('') || '<p style="color: var(--text-dim); text-align: center;">None</p>';
+
+      document.getElementById('continue-btn').textContent = (state.currentPlayer >= state.players.length - 1) ? 'FINISH GAME' : 'NEXT PLAYER →';
+    }
+
+    function nextTurnOrFinish() {
+      state.currentPlayer++;
+      if (state.currentPlayer >= state.players.length) {
+        // All players have played, show final leaderboard
+        const sorted = [...state.players].sort((a,b) => b.score - a.score);
+        const winner = sorted[0];
+        document.getElementById('leaderboard-list').innerHTML = sorted.map((t, i) => `
+          <div class="lb-row ${i===0?'win':''}">
+            <div class="lb-rank ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">${i+1}</div>
+            <div class="lb-name">${t.name}</div>
+            <div class="lb-pts" style="color: ${t.color}">${t.score}</div>
+          </div>
+        `).join('');
+        document.getElementById('leaderboard-panel').classList.remove('hidden');
+        document.getElementById('final-score').textContent = `${winner.name} WINS!`;
+        document.getElementById('score-breakdown').textContent = `with a score of ${winner.score}!`;
+        document.getElementById('continue-btn').classList.add('hidden');
+      } else {
+        // Next player's turn
+        showThemePicker();
+      }
+    }
+
+    function shareResults() {
+      const text = `🕹️ Universal Heads Up — Pixel Arcade\nI scored ${state.roundScore} pts!\n🔥 Best Combo: x${state.maxCombo}\n\nCan you beat me?`;
+      if (navigator.share) {
+        navigator.share({ title: 'Universal Heads Up', text });
+      } else {
+        navigator.clipboard.writeText(text).then(() => showToast('📋', 'Copied!'));
+      }
+    }
+
+    function quitGame() {
+      state.gameActive = false;
+      clearInterval(state.timerInterval);
+      if (wakeLock?.release) wakeLock.release().catch(()=>{});
+      showScreen('welcome');
+    }
+
+    function resumeGame() {
+      state.paused = false;
+      document.getElementById('pause-overlay').classList.add('hidden');
+    }
+
+    function togglePause() {
+      if (!state.gameActive) return;
+      state.paused = !state.paused;
+      document.getElementById('pause-overlay').classList.toggle('hidden', !state.paused);
+    }
+        /* ==================== INPUTS ==================== */
+    function setupInputs() {
+      let startY = 0;
+      document.addEventListener('touchstart', e => {
+        if (!state.gameActive) return;
+        startY = e.touches[0].clientY;
+      }, { passive: true });
+      
+      document.addEventListener('touchend', e => {
+        if (!state.gameActive) return;
+        const diff = e.changedTouches[0].clientY - startY;
+        if (diff < -50) handleCorrect();
+        if (diff > 50) handlePass();
+      }, { passive: true });
+
+      document.addEventListener('keydown', e => {
+        if (!state.gameActive) return;
+        if (e.key === 'ArrowUp' || e.key === ' ') handleCorrect();
+        if (e.key === 'ArrowDown') handlePass();
+        if (e.key === 'p' || e.key === 'P') togglePause();
+      });
+
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', e => {
+          if (!state.gameActive || state.paused) return;
+          const now = Date.now();
+          if (now - state.lastTiltTime < 700) return;
+          const beta = e.beta;
+          if (beta === null) return;
+          if (beta < 50) { state.lastTiltTime = now; handleCorrect(); }
+          else if (beta > 130) { state.lastTiltTime = now; handlePass(); }
+        });
+      }
+
+      document.getElementById('game-screen').addEventListener('click', e => {
+        if (!state.gameActive) return;
+        const h = window.innerHeight;
+        if (e.clientY < h * 0.3) handleCorrect();
+        else if (e.clientY > h * 0.7) handlePass();
+        else togglePause();
+      });
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && state.gameActive && !state.paused) togglePause();
+      });
+    }
+
+    /* ==================== SETTINGS ==================== */
+    function loadSettings() {
+      const savedRegion = localStorage.getItem('uhu_region') || 'Global';
+      const savedLanguage = localStorage.getItem('uhu_language') || 'English';
+      
+      const regionInput = document.getElementById('region-input');
+      const langInput = document.getElementById('language-input');
+
+      if (regionInput) regionInput.value = savedRegion;
+      if (langInput) langInput.value = savedLanguage;
+    }
+
+    /* ==================== FLOATING CATS ==================== */
+    const CAT_EMOJIS = ['🐱', '🐈', '🐈‍⬛', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾'];
+
+    function spawnFloatingCat() {
+      const welcomeScreen = document.getElementById('welcome-screen');
+      if (!welcomeScreen || !welcomeScreen.classList.contains('active')) return;
+
+      const cat = document.createElement('div');
+      cat.className = 'floating-cat';
+      cat.textContent = CAT_EMOJIS[Math.floor(Math.random() * CAT_EMOJIS.length)];
+
+      const isLeft = Math.random() > 0.5;
+      const startY = Math.random() * window.innerHeight;
+      const startX = isLeft ? -50 : window.innerWidth + 50;
+      
+      const endY = Math.random() * window.innerHeight;
+      const endX = isLeft ? window.innerWidth + 50 : -50;
+      
+      const dy = endY - startY;
+      const dx = endX - startX;
+      const rot = (Math.random() * 360) + (isLeft ? 360 : -360);
+
+      cat.style.setProperty('--startX', `${startX}px`);
+      cat.style.setProperty('--startY', `${startY}px`);
+      cat.style.setProperty('--endX', `${endX}px`);
+      cat.style.setProperty('--endY', `${endY}px`);
+      cat.style.setProperty('--rot', `${rot}deg`);
+      
+      const duration = 6000 + Math.random() * 6000;
+      cat.style.animationDuration = `${duration}ms`;
+
+      welcomeScreen.appendChild(cat);
+
+      setTimeout(() => {
+        cat.remove();
+      }, duration);
+    }
+
+    setInterval(spawnFloatingCat, 1500);
+
+    /* ==================== INIT ==================== */
+    function init() {
+      loadSettings();
+      setupInputs();
+      renderSetup();
+      renderSavedDecks();
+      const hour = new Date().getHours();
+      if (hour >= 0 && hour < 6) document.body.style.setProperty('--bg', '#050510');
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+node_modules/
+freellmapi/node_modules/
+freellmapi/server/dist/
+freellmapi/server/data/
+freellmapi/.env
+.gemini/
+.DS_Store

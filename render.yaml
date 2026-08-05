@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: ultimate-heads-up
+    env: node
+    plan: free
+    buildCommand: npm run postinstall
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: CLIENT_DIST
+        value: ../public
+      - key: FREEAPI_CONFIG_JSON
+        value: '{"keys":[{"platform":"google","key":"YOUR_GEMINI_KEY_HERE"}]}'

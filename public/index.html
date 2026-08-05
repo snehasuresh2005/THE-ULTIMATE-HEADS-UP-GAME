@@ -1031,6 +1031,14 @@ Requirements:
 
     /* ==================== LOADING ==================== */
     async function startLoading() {
+      // Request device orientation & motion permission (critical for iOS)
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        try { await DeviceMotionEvent.requestPermission(); } catch(e) {}
+      }
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try { await DeviceOrientationEvent.requestPermission(); } catch(e) {}
+      }
+
       initAudio();
       const region = document.getElementById('region-input').value.trim() || 'Global';
       const lang = document.getElementById('language-input').value.trim() || 'English';
@@ -1448,51 +1456,24 @@ Requirements:
         if (e.key === 'p' || e.key === 'P') togglePause();
       });
 
-      if (window.DeviceOrientationEvent) {
-        window.addEventListener('deviceorientation', e => {
+      if (window.DeviceMotionEvent) {
+        window.addEventListener('devicemotion', e => {
           if (!state.gameActive || state.paused) return;
           const now = Date.now();
           if (now - state.lastTiltTime < 1000) return; // 1 second debounce
           
-          let tiltForward = false;
-          let tiltBackward = false;
+          const gravity = e.accelerationIncludingGravity;
+          if (!gravity) return;
           
-          // Check screen orientation format
-          const orientationType = screen.orientation?.type || '';
-          const isLandscape = orientationType.includes('landscape') || Math.abs(window.orientation) === 90;
+          const z = gravity.z;
+          if (z === null) return;
           
-          if (isLandscape) {
-            // In landscape, tilt is measured by Y-rotation (gamma)
-            const gamma = e.gamma;
-            const orientationAngle = screen.orientation?.angle || window.orientation || 90;
-            
-            if (gamma !== null) {
-              const factor = orientationAngle === -90 ? -1 : 1;
-              const adjustedGamma = gamma * factor;
-              
-              // 35 degrees threshold to prevent accidental triggering
-              if (adjustedGamma < -35) {
-                tiltForward = true;
-              } else if (adjustedGamma > 35) {
-                tiltBackward = true;
-              }
-            }
-          } else {
-            // Fallback for portrait mode
-            const beta = e.beta;
-            if (beta !== null) {
-              if (beta < 45) {
-                tiltForward = true;
-              } else if (beta > 135) {
-                tiltBackward = true;
-              }
-            }
-          }
-          
-          if (tiltForward) {
+          // z < -5.5 means screen tilted forward (screen down) -> CORRECT
+          // z > 5.5 means screen tilted backward (screen up) -> PASS
+          if (z < -5.5) {
             state.lastTiltTime = now;
             handleCorrect();
-          } else if (tiltBackward) {
+          } else if (z > 5.5) {
             state.lastTiltTime = now;
             handlePass();
           }

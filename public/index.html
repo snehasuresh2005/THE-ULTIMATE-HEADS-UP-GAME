@@ -489,9 +489,40 @@
         opacity: 0;
       }
     }
+
+    /* Portrait warning overlay */
+    #portrait-warning {
+      position: fixed; inset: 0; z-index: 10000;
+      background: var(--bg);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 20px;
+      box-shadow: inset 0 0 80px rgba(0,0,0,0.8);
+    }
+    
+    @media (orientation: portrait) {
+      #portrait-warning {
+        display: flex;
+      }
+    }
+
+    @keyframes rotatePhone {
+      0% { transform: rotate(0deg); }
+      50% { transform: rotate(-90deg); }
+      100% { transform: rotate(0deg); }
+    }
   </style>
 </head>
 <body class="crt">
+  <!-- Portrait Orientation Warning -->
+  <div id="portrait-warning">
+    <div class="pixel-box" style="text-align: center; max-width: 320px; border: 4px solid var(--pixel-pink); padding: 20px; background: var(--bg-panel); box-shadow: 6px 6px 0px #000; z-index: 10001; position: relative;">
+      <div style="font-size: 2.5rem; margin-bottom: 20px; animation: rotatePhone 2s infinite ease-in-out;">🔄</div>
+      <h2 style="color: var(--pixel-pink); font-size: 1.2rem; margin-bottom: 10px;">ROTATE DEVICE!</h2>
+      <p style="font-size: 1.2rem; color: var(--text);">Hold your phone horizontal (landscape) to play!</p>
+    </div>
+  </div>
+
   <div class="pixel-bg"></div>
 
   <!-- Cat Meme Overlay -->
@@ -1116,7 +1147,7 @@ Requirements:
       overlay.classList.remove('hidden');
       const cd = document.getElementById('turn-count');
 
-      if (screen.orientation?.lock) screen.orientation.lock('portrait').catch(()=>{});
+      if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
       if ('wakeLock' in navigator) {
         try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
       }
@@ -1412,11 +1443,50 @@ Requirements:
         window.addEventListener('deviceorientation', e => {
           if (!state.gameActive || state.paused) return;
           const now = Date.now();
-          if (now - state.lastTiltTime < 700) return;
-          const beta = e.beta;
-          if (beta === null) return;
-          if (beta < 50) { state.lastTiltTime = now; handleCorrect(); }
-          else if (beta > 130) { state.lastTiltTime = now; handlePass(); }
+          if (now - state.lastTiltTime < 1000) return; // 1 second debounce
+          
+          let tiltForward = false;
+          let tiltBackward = false;
+          
+          // Check screen orientation format
+          const orientationType = screen.orientation?.type || '';
+          const isLandscape = orientationType.includes('landscape') || Math.abs(window.orientation) === 90;
+          
+          if (isLandscape) {
+            // In landscape, tilt is measured by Y-rotation (gamma)
+            const gamma = e.gamma;
+            const orientationAngle = screen.orientation?.angle || window.orientation || 90;
+            
+            if (gamma !== null) {
+              const factor = orientationAngle === -90 ? -1 : 1;
+              const adjustedGamma = gamma * factor;
+              
+              // 35 degrees threshold to prevent accidental triggering
+              if (adjustedGamma < -35) {
+                tiltForward = true;
+              } else if (adjustedGamma > 35) {
+                tiltBackward = true;
+              }
+            }
+          } else {
+            // Fallback for portrait mode
+            const beta = e.beta;
+            if (beta !== null) {
+              if (beta < 45) {
+                tiltForward = true;
+              } else if (beta > 135) {
+                tiltBackward = true;
+              }
+            }
+          }
+          
+          if (tiltForward) {
+            state.lastTiltTime = now;
+            handleCorrect();
+          } else if (tiltBackward) {
+            state.lastTiltTime = now;
+            handlePass();
+          }
         });
       }
 

@@ -1138,7 +1138,13 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
   // Bypassed if referer matches our host to allow keyless heads up client execution.
   const token = extractApiToken(req);
   const unifiedKey = getUnifiedApiKey();
-  const isLocalReferer = req.headers.referer?.startsWith(req.protocol + '://' + req.headers.host);
+  let isLocalReferer = false;
+  if (req.headers.referer && req.headers.host) {
+    try {
+      const refererHost = new URL(req.headers.referer).host;
+      isLocalReferer = refererHost === req.headers.host;
+    } catch (e) {}
+  }
   if (!isLocalReferer && (!token || !timingSafeStringEqual(token, unifiedKey))) {
     res.status(401).json({
       error: { message: 'Invalid API key', type: 'authentication_error' },
